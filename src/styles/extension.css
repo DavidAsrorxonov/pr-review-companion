@@ -10,8 +10,16 @@
 }
 
 @layer base {
-  body { @apply m-0 bg-paper font-sans text-ink antialiased; }
-  button { @apply cursor-pointer; }
-  button:disabled { @apply cursor-wait; }
-  :focus-visible { @apply outline-2 outline-offset-4 outline-accent; }
+  body {
+    @apply m-0 bg-paper font-sans text-ink antialiased;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-wait;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-4 outline-accent;
+  }
 }
