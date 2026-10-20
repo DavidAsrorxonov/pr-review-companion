@@ -19,5 +19,5 @@
     "noEmit": true,
     "types": ["vite/client", "chrome", "node"]
   },
-  "include": ["src", "manifest.config.ts", "vite.config.ts"]
+  "include": ["src", "manifest.config.ts", "vite.config.ts", "vitest.config.ts"]
 }

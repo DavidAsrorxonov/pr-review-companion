@@ -74,7 +74,11 @@ pr-review-companion/
 │   │       └── useNotes.ts
 │   │
 │   ├── background/
-│   │   ├── service-worker.ts       # alarm + message wiring
+│   │   ├── service-worker.ts       # synchronous message registration; later alarms
+│   │   ├── auth/                   # worker-only authentication (implemented in step 2)
+│   │   │   ├── controller.ts       # trusted storage, sender checks, credential lifecycle
+│   │   │   ├── github.ts           # identity and optional repository access checks
+│   │   │   └── errors.ts           # sanitized authentication failures
 │   │   ├── poller.ts               # scheduled queue refresh
 │   │   ├── badge.ts                # toolbar badge count
 │   │   └── notifications.ts        # new review request / new reply alerts
@@ -97,11 +101,12 @@ pr-review-companion/
 │   │   │   ├── schemas.ts          # Zod schemas for responses
 │   │   │   └── rateLimit.ts        # reads rate-limit headers, backs off
 │   │   ├── storage/
-│   │   │   ├── tokenStore.ts       # worker-owned credential operations; trusted storage
 │   │   │   ├── notesStore.ts       # account-scoped PR notes; accessed through worker
 │   │   │   ├── notificationStore.ts # monitored PRs, checkpoints, delivery ledger
 │   │   │   └── settingsStore.ts
-│   │   ├── messaging.ts            # typed, runtime-validated messages and sender checks
+│   │   ├── auth.ts                 # runtime-validated auth messages and sanitized replies
+│   │   ├── useAuthStatus.ts        # UI status on mount/focus; no API calls
+│   │   ├── messaging.ts            # future review/notes messages
 │   │   └── types.ts
 │   │
 │   └── styles/
@@ -298,23 +303,48 @@ reload. Authenticated network calls target `api.github.com` from the worker.
 
 ## 9. Build Phases
 
-1. **Scaffold** — Vite + CRXJS + React + TS; manifest, empty content script,
-   worker, popup, options. Confirm bootstrap entry from non-PR GitHub pages.
-2. **Auth & API client** — trusted storage initialization, validated messages,
-   single-token coverage UI, account identity, Zod schemas, and fully paginated
-   thread/comment fetching with partial/error states.
-3. **Panel injection** — idempotent Shadow DOM mount, GitHub-wide navigation
-   bootstrap, route cleanup, stale-response rejection, and unresolved-thread UI.
-4. **Thread jump** — `domAnchors.ts` + `threadJump.ts`, scroll and highlight.
-5. **Notes** — `notesStore`, note editor, done/not-done state, summary counts.
-6. **Queue & badge** — explicit request-based classification, paginated discovery,
+The implementation follows these nine steps. Authentication and the general
+review-data API layer are separate checkpoints.
+
+1. **Scaffold** — Vite + CRXJS + React + TS; manifest, inert content bootstrap,
+   worker, popup, and options. Loaded and run in Chrome by the project owner.
+2. **Secure authentication** — one fine-grained token, trusted-context storage,
+   runtime-validated messages and sender checks, account identity verification,
+   optional repository access check, replacement/disconnect, and status UI.
+   No review-data fetching or pagination in this step.
+3. **GitHub review-data API** — response schemas, thread/comment pagination,
+   caching, rate limits, and explicit partial/error states.
+4. **Panel injection** — idempotent Shadow DOM mount, SPA navigation, route
+   cleanup, stale-response rejection, and unresolved-thread UI.
+5. **Thread jump** — selectors, scrolling/highlighting, and permalink fallbacks.
+6. **Notes** — account-scoped local note CRUD, done/not-done, and summaries.
+7. **Queue & badge** — request-based classification, paginated discovery,
    persisted snapshots, alarm recovery, freshness indicators, and badge count.
-7. **Notifications & settings** — monitored PR lifecycle, complete silent
-   baselines, reply-ID tracking, persisted delivery ledger, optional notification
-   permission, interval and independent request/reply alert toggles.
-8. **Hardening** — rate-limit handling, expired/invalid token states, empty
-   states, large PRs (many threads), selector-failure fallbacks.
-9. **Package & listing** — icons, screenshots, permission justification, submit.
+8. **Notifications & settings** — monitored PR lifecycle, silent baselines,
+   reply-ID tracking, delivery ledger, optional permission, and alert toggles.
+9. **Validation & packaging** — full-extension integration and failure tests,
+   final icons/screenshots, permission justification, and store submission assets.
+
+### Step 2 authentication contract
+
+- `auth.status`: popup/options only; returns saved identity, verification time,
+  credential revision, and health, never the token. It performs no API call.
+- `auth.connect`, `auth.recheck`, `auth.disconnect`, `auth.checkRepository`:
+  options only. All messages require the correct extension ID and exact page URL;
+  content scripts have no authentication operations in this phase.
+- The worker verifies `GET /user` before persisting a candidate. Failed
+  replacements retain the previous credential. In-flight checks cannot overwrite
+  a newer connection or resurrect one after disconnect.
+- Authentication state is versioned and stored under `prrc.auth.v1`; rate-limit
+  guidance uses `prrc.auth.retryAt`. Disconnect removes these keys only. Credential
+  changes will invalidate review caches when those caches are added in step 3.
+- The optional `owner/repo` probe reads at most one PR using
+  `GET /repos/{owner}/{repo}/pulls?state=all&per_page=1`. Empty arrays are success;
+  data is discarded. This proves access to that repository at that time only.
+- Network requests omit cookies, reject redirects, and time out after 15 seconds.
+  Rate limits return a persisted retry time, without automatic polling/retries.
+  Account recheck failures preserve the identity and mark validity unknown or
+  invalid; repository errors remain separate from account authentication status.
 
 ## 10. Testing Strategy
 

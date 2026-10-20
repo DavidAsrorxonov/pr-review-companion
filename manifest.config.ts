@@ -11,7 +11,7 @@ const icons = {
 export default defineManifest({
   manifest_version: 3,
   name: 'PR Review Companion',
-  description: 'A companion for GitHub pull-request reviews. Initial development scaffold.',
+  description: 'A companion for GitHub pull-request reviews. Secure account setup preview.',
   version: packageJson.version,
   icons,
   action: {

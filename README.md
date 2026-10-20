@@ -2,10 +2,10 @@
 
 A Chrome extension for keeping track of GitHub pull-request reviews.
 
-**Status: step 1 — local scaffold.** The popup and settings page work, and an inert
-bootstrap runs on GitHub. Authentication, review queues, notes, polling,
-notifications, and the injected PR panel are not implemented yet. There is no
-token input or GitHub API traffic.
+**Status: step 2 — secure GitHub authentication.** Connect one fine-grained
+personal access token, verify the account, optionally check a repository, replace
+the credential, or disconnect. Review fetching, queues, notes, polling,
+notifications, and the injected PR panel are not implemented yet.
 
 ## Requirements and installation
 
@@ -56,50 +56,94 @@ logs to see `[PR Review Companion] Bootstrap: PR` or `non-PR`. A directly opened
 `/owner/repo/pull/123` route is a PR; repository homepages, `/pulls`, and `/pull/new`
 are not. Diagnostics are removed from production output.
 
+## Connect GitHub
+
+1. Open the extension's settings and follow **Create a fine-grained token on GitHub**.
+2. Select a resource owner and the repositories you want to review. Grant
+   **Pull requests: Read-only**; metadata read access is included automatically.
+   Set an expiration date. Organization policies may require approval.
+3. Paste the token into the password field and choose **Verify and save**.
+4. Optionally enter `owner/repo` under **Check repository access** and choose
+   **Check access**. Identity verification alone does not verify repository grants.
+
+The saved account and last successful verification time appear in settings. The
+popup reads saved status without a GitHub request. Use **Recheck connection** to
+verify the saved credential again; a network failure preserves the last verified
+identity and marks current validity unknown. **Replace token** verifies the new
+credential before saving; a failed replacement preserves the old connection.
+The input clears after each completed submission and never reveals a saved token.
+
+**Disconnect** removes local authentication state. It does not revoke the token
+on GitHub; revoke it in GitHub settings separately if desired. Other extension
+storage, including future notes, is preserved.
+
+Coverage is limited to the configured token's accessible repositories. One
+fine-grained token cannot cover private repositories across multiple resource
+owners. A successful public-repository check does not prove private-repository
+permission, and an empty repository can pass. A 404 means not found or
+inaccessible; the extension cannot distinguish those cases reliably.
+
+## Credential and network boundaries
+
+- The worker restricts `chrome.storage.local` to trusted extension contexts before
+  reading or writing authentication state. Content scripts cannot read it.
+- Only the options page can submit, replace, recheck, disconnect, or check access.
+  The popup can read sanitized status. Content-script and unknown callers are
+  rejected. Runtime message payloads and GitHub responses are validated with Zod.
+- Only the worker constructs authenticated requests to `https://api.github.com`.
+  Browser cookies and redirects are disabled, requests time out after 15 seconds,
+  and errors never include tokens, headers, or raw response bodies.
+- Rate-limit retry times are persisted across worker restarts. Retries are manual;
+  there is no background polling. Repository checks discard returned PR data.
+- Credentials remain in this Chrome profile, not `storage.sync`. Trusted extension
+  pages technically retain local-storage access; this is an access restriction,
+  not encryption at rest or protection against a compromised trusted page.
+- The manifest retains `alarms` for a future step and optional `notifications`.
+  Authentication does not create alarms, request notifications, or change GitHub
+  pages. The isolated GitHub bootstrap still imports no CSS.
+
 ## Checks
 
-Scaffold verification: dependency installation, strict type checking, production
-bundling, manifest asset references, icon sizes, and absence of development-server
-references in the production output passed. Browser loading, button behavior,
-live bootstrap diagnostics, and hot refresh remain unverified: this session's
-Chrome test launch and local-server permission requests were declined.
-
 ```sh
+npm test
 npm run typecheck
 npm run build
 ```
 
-The production build runs type checking before bundling. For a browser smoke check:
+Vitest covers sender validation, storage initialization, safe failures, persistence,
+failed replacement, disconnect/replacement races, response validation, access
+errors, timeouts, and rate-limit cooldown across worker restart. Fixtures use
+synthetic credentials only.
 
-- Inspect the service worker from the extension card; confirm it has no errors.
-- Open the popup and use **Open settings** with keyboard or mouse.
-- Confirm the options page has no credential inputs and says **Not connected**.
-- In development, directly load both a GitHub repository homepage and an existing
-  PR. Confirm the bootstrap diagnostics classify each correctly.
-- Confirm GitHub's page appearance is unchanged and the extension makes no requests
-  to `api.github.com`.
-- Edit popup text temporarily, verify it updates without rebuilding, then restore it.
-- Stop the development server and confirm the production copy still opens correctly.
+The production build was exercised in an isolated Chrome for Testing profile with
+synthetic credentials and intercepted GitHub responses: setup, failed/successful
+replacement, repository checks, worker restart, recheck/recovery, and disconnect
+passed. Actual content-script storage reads and authentication messages were denied;
+opening the popup made no API request. Real GitHub credential validation remains a
+manual check, not a claim made by these mocked browser tests.
 
-## Permissions and boundaries
+Step 1 was successfully loaded and run in Chrome by the project owner. For the
+step 2 live-account smoke check, enter a real token only in the extension UI:
 
-The manifest declares the architecture's future `storage`, `alarms`, and
-`https://api.github.com/*` permissions. Step 1 does not use them. Notifications are
-optional and are never requested by this scaffold. A GitHub-wide isolated-world
-content script leaves room for detecting navigation into PRs in a later step;
-there is no separate broad GitHub host permission or access to other sites.
+1. Verify and save it, close/reopen settings and popup, and confirm the account.
+2. Stop the worker from Chrome's developer tools, reopen the popup, and confirm
+   saved identity survives without an automatic API call.
+3. Check a permitted repository, an empty repository, and an inaccessible one.
+4. Try an invalid replacement; confirm the saved account survives and the password
+   input clears. Then replace with a valid credential and recheck it.
+5. Test offline rechecking: identity should remain with validity unknown.
+6. Disconnect and confirm the popup becomes disconnected after reopening/focus.
 
-All production scripts, styles, and icons are bundled locally. Tailwind styles are
-imported only by the extension popup and options page, never by the GitHub bootstrap.
-The four PNG icons in `public/icons` are temporary development branding.
+Do not put real tokens in chat, source files, test fixtures, logs, or screenshots.
 
 ## Structure and next steps
 
 - `manifest.config.ts` and `vite.config.ts`: extension entrypoints and build setup.
-- `src/background` and `src/content`: worker and inert GitHub bootstrap.
+- `src/background/auth`: worker-only credential lifecycle and GitHub access checks.
+- `src/background` and `src/content`: message entrypoint and inert GitHub bootstrap.
 - `src/popup`, `src/options`, `src/shared`, `src/styles`: React extension surfaces.
 - [Architecture](PR_REVIEW_COMPANION_ARCHITECTURE.md): full design and later stages.
 
-The next step adds secure single-token setup, trusted-context storage access, and
-validated worker messaging. This scaffold does not commit, push, publish to the
-Chrome Web Store, or include CI and feature-specific test suites.
+The next step builds the GitHub review-data layer: response schemas, pagination,
+caching, and rate-limit handling for review reads. Changes remain local until you
+commit and push them; Chrome Web Store publication and CI remain later work.

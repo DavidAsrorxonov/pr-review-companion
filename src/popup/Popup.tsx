@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Brand } from "../shared/Brand";
+import { useAuthStatus } from "../shared/useAuthStatus";
+import { AuthErrorMessage } from "../shared/AuthErrorMessage";
 
 export function Popup() {
+  const { status, error: statusError } = useAuthStatus();
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,18 +28,21 @@ export function Popup() {
         aria-labelledby="queue-heading"
       >
         <span className="text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
-          Getting started
+          {status?.connected ? `@${status.account.login}` : "Getting started"}
         </span>
         <h2
           id="queue-heading"
           className="mt-2 text-xl leading-tight font-semibold tracking-tight"
         >
-          Review queues are not connected yet
+          Review queues are coming next
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          Your review workspace starts here. GitHub connection settings are
-          coming in the next step.
+          {status === null ? (statusError ? "Connection status is unavailable." : "Loading saved connection…")
+            : !status.connected ? "Connect your GitHub account in settings to get started."
+            : status.health === "verified" ? "Your GitHub account is saved. Repository coverage depends on the configured token’s access."
+            : "Your account is saved, but its credential needs a recheck. Open settings to verify or replace it."}
         </p>
+        {statusError && <AuthErrorMessage error={statusError} />}
         <button
           type="button"
           onClick={() => void openSettings()}
@@ -52,7 +58,7 @@ export function Popup() {
         )}
       </section>
       <p className="mt-4 text-center text-xs text-muted">
-        Development preview · No GitHub connection
+        Development preview · Queues are not implemented yet
       </p>
     </main>
   );
