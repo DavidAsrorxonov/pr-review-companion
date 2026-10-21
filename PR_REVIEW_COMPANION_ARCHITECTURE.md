@@ -313,7 +313,8 @@ review-data API layer are separate checkpoints.
    optional repository access check, replacement/disconnect, and status UI.
    No review-data fetching or pagination in this step.
 3. **GitHub review-data API** — response schemas, thread/comment pagination,
-   caching, rate limits, and explicit partial/error states.
+   caching, rate limits, explicit partial/error states, and an options-page PR URL
+   preview. No injected panel or background polling in this checkpoint.
 4. **Panel injection** — idempotent Shadow DOM mount, SPA navigation, route
    cleanup, stale-response rejection, and unresolved-thread UI.
 5. **Thread jump** — selectors, scrolling/highlighting, and permalink fallbacks.
@@ -336,15 +337,64 @@ review-data API layer are separate checkpoints.
   replacements retain the previous credential. In-flight checks cannot overwrite
   a newer connection or resurrect one after disconnect.
 - Authentication state is versioned and stored under `prrc.auth.v1`; rate-limit
-  guidance uses `prrc.auth.retryAt`. Disconnect removes these keys only. Credential
-  changes will invalidate review caches when those caches are added in step 3.
+  guidance uses `prrc.auth.retryAt`. Step 3 adds revision-scoped review cache
+  invalidation to successful replacement and disconnect. Failed replacement
+  preserves the saved connection and cache; unrelated state is not removed.
 - The optional `owner/repo` probe reads at most one PR using
   `GET /repos/{owner}/{repo}/pulls?state=all&per_page=1`. Empty arrays are success;
   data is discarded. This proves access to that repository at that time only.
 - Network requests omit cookies, reject redirects, and time out after 15 seconds.
   Rate limits return a persisted retry time, without automatic polling/retries.
   Account recheck failures preserve the identity and mark validity unknown or
-  invalid; repository errors remain separate from account authentication status.
+  invalid; repository permission failures remain separate from account status.
+  A definitive 401 from a saved-credential request invalidates review access.
+
+### Step 3 review-data contract
+
+- Options-only `reviews.load { pr: { owner, repo, number }, refresh? }`,
+  `reviews.continue { jobId }`, and `reviews.cancel { jobId? }` use strict runtime
+  validation. The extension ID, exact options URL, origin/frame, and sender
+  document ID are checked. Popup/content-script access remains disabled until
+  the panel step defines route-bound authorization.
+- The worker issues fixed GraphQL queries: 25 threads with 20 initial comments,
+  then 100 comments per additional comment page. Every connection has an
+  independent cursor history; missing/repeated cursors fail incomplete. Node IDs
+  deduplicate records. Resolved/outdated threads and published comments are retained;
+  pending comments, general conversation comments, and review summaries are excluded.
+- Normalized data retains PR metadata, stable IDs, paths, nullable line/range/side
+  fields, comment authors (nullable), Markdown bodies, timestamps, and permalinks.
+  Returned GitHub URLs are restricted to HTTPS github.com. UI renders escaped text.
+- Replies separate `state`, `complete`, `freshness`, `persistence`, progress,
+  `partial`, `snapshot`, `error`, and cache-write `warning`. `complete` describes
+  the current load; an error can still carry a separately complete prior snapshot.
+  Error-bearing pages never advance checkpoints or replace complete snapshots.
+- Each message performs at most one network request, with a 15-second timeout.
+  The requesting options document drives subsequent pages while its load is active.
+  One job per document, at most two concurrent requests, five-minute idle expiry,
+  and an 8 MiB accumulated-result bound keep work finite. Jobs live only in worker
+  memory. Restart/expiry requires a fresh traversal; incomplete results are never
+  interpreted as removals. Closing the page stops continuations. No polling/alarms.
+- Complete snapshots use `prrc.reviews.cache.v1`, account ID + credential revision
+  + normalized PR identity, 60-second freshness, and LRU eviction at 20 entries /
+  4 MiB total. Oversized complete results are uncached; storage failure is explicit.
+  Partial progress is never persisted. Cache data is disposable and schema checked.
+- Worker-internal credential capabilities serialize short reads/commits against
+  auth changes, without holding a lock during network requests. Revision and
+  invalidation checks guard requests, cache writes, and replies. Successful
+  replacement clears cache in the credential storage write, invalidates jobs, and
+  updates other UI tabs through sanitized status reads. Disconnect removes auth,
+  review cache, and GraphQL cooldown keys. Confirmed invalid credentials suppress
+  data; definite PR access denial purges that PR. Transient errors retain stale data.
+- REST primary guidance stays under `prrc.auth.retryAt`; GraphQL guidance uses
+  `prrc.reviews.retry.v1`. `prrc.secondaryRetry.v1` blocks both transports and is
+  retained on disconnect to honor the server deadline. Cooldowns persist across
+  worker restarts. A successful page exhausting the GraphQL budget is usable,
+  but subsequent requests wait for reset; retries remain manual.
+- The settings preview accepts a PR URL (including files/commits/checks subpages),
+  normalizes query/fragment away, and shows title/state, provisional/complete
+  counts, loading progress, cached/stale status, timestamp, Refresh, and Cancel.
+  Outdated counts overlap resolved/unresolved counts. Pagination completeness does
+  not claim atomic consistency while GitHub discussions change.
 
 ## 10. Testing Strategy
 

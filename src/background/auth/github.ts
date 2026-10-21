@@ -9,7 +9,7 @@ export interface AuthApi {
   checkRepository(token: string, owner: string, repo: string): Promise<void>;
 }
 
-function retryTime(response: Response, now: number): number {
+export function retryTime(response: Response, now: number): number {
   const retryAfter = response.headers.get('retry-after');
   const reset = response.headers.get('x-ratelimit-remaining') === '0'
     ? Number(response.headers.get('x-ratelimit-reset')) * 1000 : 0;
@@ -38,9 +38,10 @@ export function createAuthApi(fetcher: typeof fetch = fetch, now = Date.now): Au
       const errorBody = z.object({ message: z.string() }).safeParse(data);
       const limited = response.status === 429 || (response.status === 403 && (
         response.headers.get('x-ratelimit-remaining') === '0' || response.headers.has('retry-after')
-        || (errorBody.success && /rate limit/i.test(errorBody.data.message))
+        || (errorBody.success && /rate limit|abuse/i.test(errorBody.data.message))
       ));
-      if (limited) throw new AuthFailure('RATE_LIMITED', retryTime(response, now()));
+      if (limited) throw new AuthFailure('RATE_LIMITED', retryTime(response, now()),
+        errorBody.success && /secondary rate|abuse/i.test(errorBody.data.message));
       if (response.status === 401) throw new AuthFailure('INVALID_TOKEN');
       if (response.status === 403) throw new AuthFailure('FORBIDDEN');
       if (response.status === 404) throw new AuthFailure('REPOSITORY_UNAVAILABLE');

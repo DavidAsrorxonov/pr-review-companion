@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ReviewPreview } from "./ReviewPreview";
 import { Brand } from "../shared/Brand";
 import { AuthErrorMessage } from "../shared/AuthErrorMessage";
 import { requestAuth } from "../shared/auth";
@@ -141,7 +142,8 @@ export function Options() {
           <p className="mt-3 text-xs leading-relaxed text-muted">An empty repository can pass. Success applies only to this repository at this time. Public repository access does not prove permission to read private repositories.</p>
         </section>
       )}
-      <p className="mt-6 text-xs leading-relaxed text-muted">Version {version} · Development preview · Review queues are coming next.</p>
+      {status?.connected && status.health !== "invalid" && <ReviewPreview key={status.revision} revision={status.revision} />}
+      <p className="mt-6 text-xs leading-relaxed text-muted">Version {version} · Development preview · The PR panel is coming next.</p>
     </main>
   );
 }

@@ -1,7 +1,7 @@
 import type { AuthError, AuthErrorCode } from '../../shared/auth';
 
 export class AuthFailure extends Error {
-  constructor(readonly code: AuthErrorCode, readonly retryAt?: number) {
+  constructor(readonly code: AuthErrorCode, readonly retryAt?: number, readonly secondary = false) {
     super(code);
   }
 }

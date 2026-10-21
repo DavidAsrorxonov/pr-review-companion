@@ -1,5 +1,7 @@
 import { createAuthController } from './auth/controller';
 import { createAuthApi } from './auth/github';
+import { createReviewApi } from './reviews/github';
+import { createReviewController } from './reviews/controller';
 
 // Initialization starts now, but handlers are registered before any awaits.
 const auth = createAuthController({
@@ -8,8 +10,15 @@ const auth = createAuthController({
   extensionId: chrome.runtime.id,
 });
 
+const reviews = createReviewController({
+  credentials: auth.credentials, storage: chrome.storage.local,
+  api: createReviewApi(), extensionId: chrome.runtime.id,
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  void auth.handle(message, sender).then(sendResponse);
+  const reviewMessage = typeof message === 'object' && message !== null && 'type' in message
+    && typeof message.type === 'string' && message.type.startsWith('reviews.');
+  void (reviewMessage ? reviews.handle(message, sender) : auth.handle(message, sender)).then(sendResponse);
   return true; // Keep the response channel open during asynchronous validation.
 });
 

@@ -228,6 +228,13 @@ describe('concurrent operations', () => {
 });
 
 describe('repository access and cooldown', () => {
+  it('invalidates review access when the repository probe rejects the saved credential', async () => {
+    const s = setup(); await s.connect();
+    s.api.checkRepository.mockRejectedValueOnce(new AuthFailure('INVALID_TOKEN'));
+    await s.handle({ type: 'auth.checkRepository', owner: 'owner', repo: 'repo' }, options);
+    expect(await s.status()).toMatchObject({ status: { health: 'invalid' } });
+  });
+
   it('returns only the repository check outcome and keeps access errors separate', async () => {
     const s = setup();
     const request = { type: 'auth.checkRepository', owner: 'octocat', repo: 'hello-world' };

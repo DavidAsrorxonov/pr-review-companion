@@ -42,8 +42,8 @@ export const statusSchema = z.discriminatedUnion('connected', [
 ]);
 export type AuthStatus = z.infer<typeof statusSchema>;
 
-const ownerSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9-]*$/);
-const repoSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_.-]+$/)
+export const ownerSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9-]*$/);
+export const repoSchema = z.string().min(1).max(100).regex(/^[a-zA-Z0-9_.-]+$/)
   .refine(value => value !== '.' && value !== '..');
 export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('auth.status') }).strict(),

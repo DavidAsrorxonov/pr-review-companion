@@ -11,13 +11,20 @@ export function useAuthStatus() {
     const reply = await requestAuth({ type: 'auth.status' });
     if (current !== sequence.current) return;
     if (reply.ok) { setStatus(reply.status); setError(null); }
-    else setError(reply.error);
+    else { setStatus(null); setError(reply.error); }
   }, []);
   useEffect(() => {
     void refresh();
     const onFocus = () => { void refresh(); };
     window.addEventListener('focus', onFocus);
-    return () => { sequence.current++; window.removeEventListener('focus', onFocus); };
+    const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== 'local' || !Object.hasOwn(changes, 'prrc.auth.v1')) return;
+      // Never inspect the event's credential values; clear private UI immediately.
+      setStatus(null);
+      void refresh();
+    };
+    chrome.storage.onChanged.addListener(onStorage);
+    return () => { sequence.current++; window.removeEventListener('focus', onFocus); chrome.storage.onChanged.removeListener(onStorage); };
   }, [refresh]);
   return { status, error, refresh };
 }
