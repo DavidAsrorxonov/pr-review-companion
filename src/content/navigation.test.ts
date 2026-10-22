@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRouteCoordinator } from './navigation';
 
 describe('navigation coordinator', () => {
+  it('cancels DOM jumps on same-PR URL changes without remounting or fetching', () => {
+    let url = 'https://github.com/owner/repo/pull/1';
+    const mounted = { restore: vi.fn(), destroy: vi.fn(), revalidate: vi.fn(), suspend: vi.fn(), navigated: vi.fn() };
+    const mount = vi.fn().mockReturnValue(mounted);
+    const coordinator = createRouteCoordinator(() => url, mount); coordinator.sync(); coordinator.sync();
+    expect(mounted.navigated).not.toHaveBeenCalled();
+    url += '/files'; coordinator.sync(); url += '#discussion_r1'; coordinator.sync();
+    expect(mounted.navigated).toHaveBeenCalledTimes(2); expect(mount).toHaveBeenCalledOnce();
+    expect(mounted.revalidate).not.toHaveBeenCalled();
+  });
   it('mounts once on PR entry, preserves subpage state, and tears down on departure', () => {
     let url = 'https://github.com/owner/repo';
     const mounted = { restore: vi.fn(), destroy: vi.fn(), revalidate: vi.fn(), suspend: vi.fn() };

@@ -11,36 +11,217 @@
 }
 
 /* This entire stylesheet is a string installed only inside our shadow root. */
-:host { all: initial; color-scheme: light; font: 14px/1.5 var(--font-sans); color: #172b29; }
-.prrc-root { font: 14px/1.5 var(--font-sans); color: #172b29; color-scheme: light; text-align: left; }
-*, *::before, *::after { box-sizing: border-box; }
-button, a, summary { -webkit-tap-highlight-color: transparent; }
-button { font: inherit; cursor: pointer; border: 1px solid #dce5de; border-radius: 8px; background: white; color: #172b29; padding: 7px 10px; font-size: 12px; font-weight: 600; }
-button:hover { background: #f6f8f5; }
-button:disabled { opacity: .55; cursor: default; }
-a { color: #17634c; text-decoration: underline; text-underline-offset: 3px; }
-:focus-visible { outline: 2px solid #17634c; outline-offset: 3px; }
-h2, h3, p { margin: 0; }
-h2 { font-size: 15px; font-weight: 650; }
-.launcher { position: fixed; bottom: 16px; right: 16px; background: #17634c; color: white; border-color: #17634c; padding: 10px 14px; box-shadow: 0 3px 16px #172b2926; }
-.launcher:hover { background: #172b29; }
-.drawer { position: fixed; width: 380px; max-width: calc(100vw - 24px); right: 12px; top: 12px; bottom: 68px; display: flex; flex-direction: column; background: #f6f8f5; color: #172b29; border: 1px solid #dce5de; border-radius: 14px; box-shadow: 0 6px 30px #172b2926; overflow: hidden; text-align: left; }
-.drawer-header { padding: 14px 16px; border-bottom: 1px solid #dce5de; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: white; }
-.drawer-scroll { overflow-y: auto; overscroll-behavior: contain; padding: 16px; min-height: 0; overflow-wrap: anywhere; }
-.controls { display: flex; flex-wrap: wrap; gap: 6px; }
-.meta, .thread-meta, .footnote { color: #526762; font-size: 11px; line-height: 1.6; }
-.notice { margin-top: 12px; padding: 10px; background: white; border: 1px solid #dce5de; border-radius: 8px; font-size: 13px; }
-.snapshot { margin-top: 16px; padding-bottom: 14px; border-bottom: 1px solid #dce5de; }
-.pr-title { display: block; font-size: 15px; font-weight: 600; margin-top: 6px; }
-.list-heading { margin: 16px 0 10px; font-size: 14px; }
-.file-path { font: 600 12px/1.6 monospace; margin: 16px 0 8px; overflow-wrap: anywhere; }
-.thread { background: white; border: 1px solid #dce5de; border-radius: 9px; margin-top: 8px; }
-summary { cursor: pointer; padding: 12px; }
-.thread-meta, .thread-author, .excerpt { display: block; }
-.thread-author { font-size: 12px; font-weight: 600; margin-top: 6px; }
-.excerpt { font-size: 12px; line-height: 1.6; margin-top: 6px; white-space: pre-wrap; }
-.comments { margin: 0; padding: 0 12px 12px; list-style: none; }
-.comments li { padding-top: 12px; margin-top: 12px; border-top: 1px solid #dce5de; }
-.comment-body { white-space: pre-wrap; font-size: 12px; line-height: 1.7; margin: 8px 0; }
-.comments a { font-size: 11px; }
-.footnote { margin-top: 18px; }
+:host {
+  all: initial;
+  color-scheme: light;
+  font: 14px/1.5 var(--font-sans);
+  color: #172b29;
+}
+.prrc-root {
+  font: 14px/1.5 var(--font-sans);
+  color: #172b29;
+  color-scheme: light;
+  text-align: left;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+button,
+a,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #dce5de;
+  border-radius: 8px;
+  background: white;
+  color: #172b29;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+button:hover {
+  background: #f6f8f5;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+a {
+  color: #17634c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:focus-visible {
+  outline: 2px solid #17634c;
+  outline-offset: 3px;
+}
+h2,
+h3,
+p {
+  margin: 0;
+}
+h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.launcher {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #17634c;
+  color: white;
+  border-color: #17634c;
+  padding: 10px 14px;
+  box-shadow: 0 3px 16px #172b2926;
+}
+.launcher:hover {
+  background: #172b29;
+}
+.drawer {
+  position: fixed;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  right: 12px;
+  top: 12px;
+  bottom: 68px;
+  display: flex;
+  flex-direction: column;
+  background: #f6f8f5;
+  color: #172b29;
+  border: 1px solid #dce5de;
+  border-radius: 14px;
+  box-shadow: 0 6px 30px #172b2926;
+  overflow: hidden;
+  text-align: left;
+}
+.drawer-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #dce5de;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: white;
+}
+.drawer-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  min-height: 0;
+  overflow-wrap: anywhere;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.meta,
+.thread-meta,
+.footnote {
+  color: #526762;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.notice {
+  margin-top: 12px;
+  padding: 10px;
+  background: white;
+  border: 1px solid #dce5de;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.snapshot {
+  margin-top: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dce5de;
+}
+.pr-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.list-heading {
+  margin: 16px 0 10px;
+  font-size: 14px;
+}
+.file-path {
+  font: 600 12px/1.6 monospace;
+  margin: 16px 0 8px;
+  overflow-wrap: anywhere;
+}
+.thread {
+  background: white;
+  border: 1px solid #dce5de;
+  border-radius: 9px;
+  margin-top: 8px;
+}
+.thread-actions {
+  padding: 0 12px 12px;
+}
+.thread-actions .meta {
+  margin-top: 6px;
+}
+.jump-announcement {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.jump-highlight {
+  position: fixed;
+  pointer-events: none;
+  border: 3px solid #17634c;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px white;
+  z-index: 1;
+}
+summary {
+  cursor: pointer;
+  padding: 12px;
+}
+.thread-meta,
+.thread-author,
+.excerpt {
+  display: block;
+}
+.thread-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.excerpt {
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 6px;
+  white-space: pre-wrap;
+}
+.comments {
+  margin: 0;
+  padding: 0 12px 12px;
+  list-style: none;
+}
+.comments li {
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid #dce5de;
+}
+.comment-body {
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.comments a {
+  font-size: 11px;
+}
+.footnote {
+  margin-top: 18px;
+}

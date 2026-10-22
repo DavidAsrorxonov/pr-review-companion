@@ -2,10 +2,10 @@
 
 A Chrome extension for keeping track of GitHub pull-request reviews.
 
-**Status: step 4 — GitHub review panel.** Open the Review Companion drawer on a
-GitHub pull request to inspect unresolved review discussions grouped by file.
-The settings PR URL preview remains available. Thread jumping/highlighting,
-notes, queues, polling, notifications, and GitHub write operations remain later steps.
+**Status: step 5 — Jump to review discussions.** Open the Review Companion drawer
+on a GitHub pull request to inspect unresolved discussions grouped by file and
+jump to a published comment on the page. The settings PR URL preview remains
+available. Notes, queues, polling, notifications, and GitHub write operations remain later steps.
 
 ## Requirements and installation
 
@@ -64,7 +64,8 @@ extension reload so their content scripts use the latest build.
 3. Unresolved threads are grouped by file. Expand a thread to read its published
    comments as plain text and use **Open comment on GitHub** for a permalink.
    Resolved threads contribute to the summary but are not listed. Outdated threads
-   can be unresolved or resolved. In-page jumping/highlighting is Step 5.
+   can be unresolved or resolved. **Jump to discussion** finds an available published
+   comment, collapses the drawer, scrolls to it, and moves keyboard focus there.
 4. **Refresh** bypasses cache freshness; **Cancel loading** stops pagination.
    **Load reviews** explicitly retries an interrupted or failed load. Retry deadlines
    remain enforced. **Open settings** handles missing/invalid credentials.
@@ -78,6 +79,27 @@ page restoration, and GitHub DOM replacement are handled without duplicate hosts
 When the page is hidden, active loading stops; returning verifies saved status
 before showing retained data, without fetching GitHub automatically. Credential
 replacement/disconnect clears visible data in other tabs; load again explicitly.
+
+### Jump to a discussion
+
+Jumping uses exact `discussion_r…` anchors from the loaded comment permalinks,
+preferring the first published comment when present. It never guesses from file
+paths, line numbers, or GraphQL node IDs. Outdated and file-level discussions work
+when their comment is rendered. Closed native disclosure ancestors can be opened;
+the extension does not click GitHub's load-more controls or fetch missing content.
+
+The discussion receives a 2.5-second outline inside the extension's Shadow DOM.
+Scrolling respects reduced motion, and temporary focus attributes are restored.
+Successful jumping stops pagination; ordinary Close/Escape still returns focus to
+the launcher. Jumping itself makes no API requests and never changes the URL.
+
+If no target appears within two seconds, the drawer stays open and offers **Open
+comment on GitHub** in a new tab. Commits/checks pages and GitHub layouts without
+the supported anchor often need this fallback. No valid published permalink means
+the jump button is disabled. Hidden, inaccessible, or unloaded discussions are not
+treated as deleted. New jumps, navigation, refresh, closing, page suspension, and
+credential changes cancel pending lookup work; highlights disappear on removal or
+invalidation. No new permissions, worker messages, or persisted settings are added.
 
 The manifest now includes `https://github.com/*` host access so the worker can
 verify the current tab's PR URL before serving content-script reads. This is in
@@ -190,6 +212,9 @@ cursor loops, cache freshness/eviction/size limits, storage failures, cancellati
 credential races, interrupted jobs, and shared/separate rate-limit cooldowns.
 Step 4 adds route-bound content authorization, navigation lifecycle, stale PR and
 credential replies, focus revalidation, cancellation, and unresolved grouping.
+Step 5 adds permalink validation, bounded lookup, obsolete callback rejection,
+highlight cleanup, and same-PR jump cancellation. All 198 Vitest tests, strict
+TypeScript checking, and the production build pass.
 Fixtures use synthetic credentials only.
 
 The production build was exercised in an isolated Chrome for Testing profile with
@@ -207,8 +232,19 @@ credential changes after worker restart, complete empty results, and access deni
 GitHub document styles stayed unchanged; collapsed panels made no API requests.
 These are controlled-response browser checks, not a claim about live GitHub coverage.
 
+Step 5 production browser checks passed keyboard jumping, first/available-comment
+selection, native disclosure expansion, delayed targets, two-second fallback,
+new-tab links, focus restoration, reduced motion, narrow layout, sticky headers,
+highlight expiry/removal, same-PR navigation, refresh, and cross-tab disconnect.
+Jumping added no API requests or document styles. Step 4's browser regression also
+passed after these changes. Separately, the real public `microsoft/vscode#274`
+conversation page was loaded and its actual `discussion_r45394374` comment was
+focused/highlighted successfully, using controlled review data. No real-token
+Step 5 smoke test has been performed by the implementation agent.
+
 The project owner successfully ran Step 1 and confirmed Step 3 with a real PR URL:
-the settings preview returned its title link and review threads. For the step 2
+the settings preview returned its title link and review threads. The owner also
+confirmed that Step 4 worked live and pushed it to `main`. For the step 2
 live-account smoke check, enter a real token only in the extension UI:
 
 1. Verify and save it, close/reopen settings and popup, and confirm the account.
@@ -246,6 +282,35 @@ For the Step 4 live-GitHub smoke check after rebuilding/reloading:
 
 Do not put real tokens in chat, source files, test fixtures, logs, or screenshots.
 
+For the Step 5 live-account smoke check after rebuilding/reloading:
+
+1. Open an accessible PR, load its reviews, and use **Jump to discussion** with
+   mouse and keyboard. Confirm the drawer collapses and focus reaches the comment.
+2. Try conversation and Files changed pages, an outdated thread, and a discussion
+   inside a collapsed native disclosure. Check the temporary outline and scrolling.
+3. Try an unavailable discussion on a commits/checks page. Expect a new-tab
+   permalink offer after two seconds, with the current tab and drawer preserved.
+4. Change PR/subpage, close the drawer, refresh, or disconnect while finding a
+   target. No delayed jump should occur. Reopen the drawer and confirm normal loading.
+5. Check a narrow window and reduced-motion mode. Confirm GitHub styling is
+   unchanged and jumping itself creates no GitHub API traffic.
+
+The repeatable controlled browser check is `tests/browser/step5.mjs`. It requires
+an existing Playwright installation and Chromium supporting unpacked extensions:
+
+```sh
+npm run build
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+CHROME_EXECUTABLE=/absolute/path/to/chrome \
+node tests/browser/step5.mjs
+```
+
+It uses a separate temporary profile, synthetic credentials, and intercepted
+extension API responses. Screenshots go to ignored `test-results/step5/`. Set
+`LIVE_GITHUB=1` to also check the real public `microsoft/vscode#274` conversation
+DOM using controlled review data. That optional check is not live authentication
+or API verification; real-account smoke checks remain separate.
+
 ## Structure and next steps
 
 - `manifest.config.ts` and `vite.config.ts`: extension entrypoints and build setup.
@@ -257,6 +322,5 @@ Do not put real tokens in chat, source files, test fixtures, logs, or screenshot
 - `src/popup`, `src/options`, `src/shared`, `src/styles`: React extension surfaces.
 - [Architecture](PR_REVIEW_COMPANION_ARCHITECTURE.md): full design and later stages.
 
-The next step adds in-page thread jumping/highlighting, with GitHub permalinks as
-the fallback. Changes remain local until you
+The next step adds local notes. Changes remain local until you
 commit and push them; Chrome Web Store publication and CI remain later work.

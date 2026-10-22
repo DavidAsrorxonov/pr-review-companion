@@ -13,6 +13,7 @@ const coordinator = createRouteCoordinator(() => location.href, (pr, isCurrent) 
   });
   return {
     restore() { mounted?.restore(); },
+    navigated() { mounted?.navigated?.(); },
     async revalidate(clear) { await mounted?.revalidate(clear); },
     suspend() { mounted?.suspend(); },
     destroy() { disposed = true; mounted?.destroy(); },

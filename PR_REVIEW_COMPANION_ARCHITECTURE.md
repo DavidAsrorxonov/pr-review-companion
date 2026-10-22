@@ -440,13 +440,55 @@ review-data API layer are separate checkpoints.
   immediately, recheck status, and require explicit loading for new credentials.
 - GitHub-only host access enables current-tab URL inspection and tab discovery.
   No broad tabs, webNavigation, scripting, or new notification permissions are added.
-  The settings preview retains its existing access and behavior. Thread jumping,
-  notes, queue discovery, polling, notifications, and GitHub writes remain later steps.
+  The settings preview retains its existing access and behavior. Step 5 adds
+  thread jumping below; notes, queue discovery, polling, notifications, and GitHub
+  writes remain later steps.
 - Verification: the owner confirmed Step 3 against a real PR. Step 4 controlled
   Chrome tests cover navigation, host/body replacement, stale results, narrow layout,
   keyboard focus, escaped lazy comments, cross-tab auth changes after worker restart,
   inert subframes, forbidden auth/storage access, and unchanged GitHub styles. A
-  separate live-GitHub Step 4 smoke checklist is documented in the README.
+  separate live-GitHub Step 4 smoke checklist is documented in the README. The owner
+  subsequently confirmed a successful live Step 4 test and pushed it to `main`.
+
+### Step 5 discussion jumping contract
+
+- Each unresolved thread has a **Jump to discussion** control outside its native
+  disclosure summary. Loaded published-comment permalinks are the only anchor
+  source: validate HTTPS GitHub, current PR identity, and `discussion_r` plus a
+  positive decimal comment identifier. Never derive selectors from GraphQL IDs,
+  source lines, or paths. An absent valid permalink disables the control.
+- The content-owned `threadJump.ts` controller accepts validated links and the
+  displayed credential revision, returning found/unavailable/cancelled outcomes.
+  `domAnchors.ts` owns exact ID lookup, native disclosure expansion, sticky-header
+  inspection, and the highlight/focus adapter. Search comments in published order;
+  a later comment is usable if the first has no visible target. The exact anchor
+  structure was confirmed on the public `microsoft/vscode#274` HTML.
+- A missing target starts a single DOM observer with a two-second deadline. It
+  never fetches data or clicks GitHub controls. Failure keeps the drawer open and
+  offers the first valid permalink in a new tab with `noopener noreferrer`; it
+  does not imply deletion or change the current URL. Unsupported DOM layouts use
+  this same fallback rather than fuzzy matches.
+- Success closes the drawer through its existing pagination-cancellation path,
+  scrolls the comment into view, and focuses it without returning focus to the
+  launcher. Honor reduced motion and restore temporary tabindex attributes. An
+  accessible status region remains mounted when the drawer closes.
+- A pointer-transparent Shadow DOM outline follows the target for 2.5 seconds,
+  then cleans up frame callbacks, timers, and focus listeners. GitHub page styles
+  are never overwritten. Closed native details ancestors may remain open after a
+  successful reveal; failed inspection restores disclosures it opened.
+- New attempts supersede old callbacks. Bind pending actions to PR, URL, credential
+  revision, and generation; cancel on manual closure, refresh, navigation (including
+  same-PR subpages/fragments), suspension, invalidation, and teardown. Target removal
+  clears highlights. The existing panel data/cache behavior remains unchanged.
+- No worker messages, API calls, permissions, persisted records, or dependencies
+  are added. Reopening uses the existing cached-or-current loading path. Tests and
+  the separate live-account smoke checklist are documented in the README.
+- Verification: 198 Vitest tests, strict checking, and production build pass.
+  Controlled Chrome checks cover bounded lookup, fallback, disclosure/focus,
+  reduced motion, sticky headers, narrow layout, cleanup, and cancellation. Step 4
+  regressions still pass. A real public GitHub conversation page successfully
+  scrolled/focused/highlighted its actual comment using controlled review data;
+  this is distinct from a real-token Step 5 API smoke test, which remains manual.
 
 ## 10. Testing Strategy
 
