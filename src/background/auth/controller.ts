@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { PanelStatus } from '../../shared/panel';
 import { REVIEW_CACHE_KEY, GRAPHQL_RETRY_KEY, SECONDARY_RETRY_KEY } from '../reviews/keys';
 import { accountSchema, errorCodeSchema, requestSchema } from '../../shared/auth';
 import type { AuthReply, AuthRequest, AuthStatus } from '../../shared/auth';
@@ -105,6 +106,10 @@ export function createAuthController(deps: {
   }
   // Worker-only capability. Network work runs outside the short serialized commit lock.
   const credentials = {
+    async panelStatus(): Promise<PanelStatus> {
+      await initialized();
+      return exclusive(() => record ? { connected: true, health: record.health, revision: record.revision } : { connected: false });
+    },
     async acquire(): Promise<CredentialLease> {
       await initialized();
       return exclusive(() => {

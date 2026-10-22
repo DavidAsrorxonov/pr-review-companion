@@ -11,7 +11,7 @@ const icons = {
 export default defineManifest({
   manifest_version: 3,
   name: 'PR Review Companion',
-  description: 'A companion for GitHub pull-request reviews. Secure account setup preview.',
+  description: 'A companion for GitHub pull-request reviews. Unresolved review threads on GitHub.',
   version: packageJson.version,
   icons,
   action: {
@@ -29,7 +29,7 @@ export default defineManifest({
     world: 'ISOLATED',
   }],
   permissions: ['storage', 'alarms'],
-  host_permissions: ['https://api.github.com/*'],
+  host_permissions: ['https://api.github.com/*', 'https://github.com/*'],
   optional_permissions: ['notifications'],
   content_security_policy: {
     extension_pages: "script-src 'self'; object-src 'self'",

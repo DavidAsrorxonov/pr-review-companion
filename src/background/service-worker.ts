@@ -2,6 +2,7 @@ import { createAuthController } from './auth/controller';
 import { createAuthApi } from './auth/github';
 import { createReviewApi } from './reviews/github';
 import { createReviewController } from './reviews/controller';
+import { createPanelController } from './panel/controller';
 
 // Initialization starts now, but handlers are registered before any awaits.
 const auth = createAuthController({
@@ -12,14 +13,29 @@ const auth = createAuthController({
 
 const reviews = createReviewController({
   credentials: auth.credentials, storage: chrome.storage.local,
-  api: createReviewApi(), extensionId: chrome.runtime.id,
+  api: createReviewApi(), extensionId: chrome.runtime.id, getTab: id => chrome.tabs.get(id),
+});
+
+const panel = createPanelController({
+  credentials: auth.credentials, extensionId: chrome.runtime.id,
+  getTab: id => chrome.tabs.get(id), openSettings: () => chrome.runtime.openOptionsPage(),
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  const reviewMessage = typeof message === 'object' && message !== null && 'type' in message
-    && typeof message.type === 'string' && message.type.startsWith('reviews.');
-  void (reviewMessage ? reviews.handle(message, sender) : auth.handle(message, sender)).then(sendResponse);
-  return true; // Keep the response channel open during asynchronous validation.
+  const type = typeof message === 'object' && message !== null && 'type' in message && typeof message.type === 'string' ? message.type : '';
+  const handler = type.startsWith('reviews.') ? reviews : type.startsWith('panel.') ? panel : auth;
+  void handler.handle(message, sender).then(sendResponse);
+  return true;
+});
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url) reviews.tabChanged(tabId, change.url);
+});
+chrome.tabs.onRemoved.addListener(tabId => reviews.tabChanged(tabId));
+auth.credentials.onChange(() => {
+  // Discover tabs each time: an earlier worker may have served their panels.
+  void chrome.tabs.query({ url: 'https://github.com/*' }).then(tabs => Promise.allSettled(
+    tabs.filter(tab => tab.id !== undefined).map(tab => chrome.tabs.sendMessage(tab.id!, { type: 'panel.invalidate' }, { frameId: 0 })),
+  )).catch(() => undefined);
 });
 
 // Register listeners synchronously so Chrome can wake the worker for each event.

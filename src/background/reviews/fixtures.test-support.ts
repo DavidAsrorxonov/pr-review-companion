@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import type { GetTab } from '../panel/access';
 import { createAuthController } from '../auth/controller';
 import type { AuthStorage } from '../auth/controller';
 import { createReviewController } from './controller';
@@ -32,7 +33,7 @@ export function deferred<T>() {
   const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
   return { promise, resolve, reject };
 }
-export function setup() {
+export function setup(getTab?: GetTab) {
   const data: Record<string, unknown> = {};
   let time = 1_000;
   const storage = {
@@ -46,7 +47,7 @@ export function setup() {
   const now = () => time;
   function restart() {
     const auth = createAuthController({ storage, api: { identify, checkRepository: vi.fn() }, extensionId, now });
-    const reviews = createReviewController({ storage, credentials: auth.credentials, api: createReviewApi(fetcher, now), extensionId, now });
+    const reviews = createReviewController({ storage, credentials: auth.credentials, api: createReviewApi(fetcher, now), extensionId, getTab, now });
     return { auth, reviews };
   }
   const { auth, reviews } = restart();

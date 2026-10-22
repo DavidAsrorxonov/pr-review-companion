@@ -2,10 +2,10 @@
 
 A Chrome extension for keeping track of GitHub pull-request reviews.
 
-**Status: step 3 — review data and settings preview.** Connect one fine-grained
-personal access token and load a selected pull request in settings to inspect its
-paginated review-thread and published-comment counts. Queues, notes, polling,
-notifications, thread jumping, and the injected PR panel remain later steps.
+**Status: step 4 — GitHub review panel.** Open the Review Companion drawer on a
+GitHub pull request to inspect unresolved review discussions grouped by file.
+The settings PR URL preview remains available. Thread jumping/highlighting,
+notes, queues, polling, notifications, and GitHub write operations remain later steps.
 
 ## Requirements and installation
 
@@ -49,12 +49,41 @@ changes require reloading the extension; reload after worker changes when testin
 lifecycle events, and refresh GitHub tabs to rerun their bootstrap. If startup
 reports port 5173 is occupied, stop the process using it before restarting.
 
-The content bootstrap deliberately imports no CSS, adds no elements, and handles
-only the initial document URL. GitHub SPA navigation and the panel are a later
-step. In development, open a GitHub page's DevTools Console and enable **Verbose**
-logs to see `[PR Review Companion] Bootstrap: PR` or `non-PR`. A directly opened
-`/owner/repo/pull/123` route is a PR; repository homepages, `/pulls`, and `/pull/new`
-are not. Diagnostics are removed from production output.
+The lightweight content bootstrap runs on GitHub pages to detect navigation into
+and out of PRs. React, validation, and panel styles are loaded only on supported
+PR routes. Panel CSS is a bundled string installed exclusively inside its Shadow
+DOM; no stylesheet is added to GitHub's document. Reload GitHub tabs after an
+extension reload so their content scripts use the latest build.
+
+## Use the GitHub panel
+
+1. Connect GitHub in settings, then open a PR conversation, files, commits, or
+   checks page. Click **Review Companion** at the bottom-right.
+2. The drawer checks your saved connection, then loads cached or current reviews.
+   Merely visiting a PR with the drawer closed makes no GitHub API requests.
+3. Unresolved threads are grouped by file. Expand a thread to read its published
+   comments as plain text and use **Open comment on GitHub** for a permalink.
+   Resolved threads contribute to the summary but are not listed. Outdated threads
+   can be unresolved or resolved. In-page jumping/highlighting is Step 5.
+4. **Refresh** bypasses cache freshness; **Cancel loading** stops pagination.
+   **Load reviews** explicitly retries an interrupted or failed load. Retry deadlines
+   remain enforced. **Open settings** handles missing/invalid credentials.
+5. **Close**, the launcher, or Escape while focus is in the drawer collapses it.
+   Closing stops pagination and restores launcher focus. Reopening uses the normal
+   cache-or-fetch path. The drawer is nonmodal; GitHub remains interactive.
+
+Same-PR subpages and fragments preserve the panel and do not refetch. A different
+PR resets it to closed and drops old data; non-PR pages have no launcher. Back/forward,
+page restoration, and GitHub DOM replacement are handled without duplicate hosts.
+When the page is hidden, active loading stops; returning verifies saved status
+before showing retained data, without fetching GitHub automatically. Credential
+replacement/disconnect clears visible data in other tabs; load again explicitly.
+
+The manifest now includes `https://github.com/*` host access so the worker can
+verify the current tab's PR URL before serving content-script reads. This is in
+addition to GitHub API access. No broad `tabs`, `webNavigation`, or `scripting`
+permission is requested. After rebuilding, reload the extension, accept updated
+GitHub site access if Chrome prompts, and refresh GitHub tabs.
 
 ## Connect GitHub
 
@@ -104,7 +133,7 @@ Complete snapshots are stored in trusted local storage, scoped to the account
 and credential revision. Freshness lasts **60 seconds**; the cache keeps at most
 **20 PRs / 4 MiB**, evicting least recently used entries. Snapshots larger than the
 cache budget are shown as uncached. A load exceeding **8 MiB** stops explicitly
-incomplete. Snapshot data includes comment bodies for the later panel; disconnect
+incomplete. Snapshot data includes comment bodies for the panel; disconnect
 or successful token replacement clears it. Failed replacement preserves it.
 
 Each load/continuation performs at most one GitHub request. Jobs belong to the
@@ -127,11 +156,13 @@ block both APIs. After the indicated time, retry manually.
 - The worker restricts `chrome.storage.local` to trusted extension contexts before
   reading or writing authentication state. Content scripts cannot read it.
 - Only the options page can submit, replace, recheck, disconnect, or check access.
-  The popup can read sanitized status. Content-script and unknown callers are
-  rejected. Review operations are options-only and continuation IDs are bound to
-  Chrome's sender document ID. Runtime messages and GitHub responses are validated
-  with Zod; callers cannot supply tokens, query documents, or request cursors for
-  review reads.
+  The popup can read sanitized authentication status. Content scripts cannot use
+  any `auth.*` operation or read storage. The top-frame GitHub content script can
+  read only the current PR, obtain minimal panel connection status, and open the
+  fixed settings page. The worker checks the tab's current URL, and binds jobs to
+  tab/document/PR/credential revision. Options keeps its existing review access.
+  Runtime messages and GitHub responses are validated with Zod; callers cannot
+  supply tokens, query documents, or request cursors for review reads.
 - Only the worker constructs authenticated requests to `https://api.github.com`.
   Browser cookies and redirects are disabled, requests time out after 15 seconds,
   and errors never include tokens, headers, or raw response bodies.
@@ -141,8 +172,9 @@ block both APIs. After the indicated time, retry manually.
   pages technically retain local-storage access; this is an access restriction,
   not encryption at rest or protection against a compromised trusted page.
 - The manifest retains `alarms` for a future step and optional `notifications`.
-  Authentication does not create alarms, request notifications, or change GitHub
-  pages. The isolated GitHub bootstrap still imports no CSS.
+  No alarms or notifications are created. The isolated content script adds only
+  its own panel host; GitHub layout, global styles, and page scripts are unchanged.
+  Shadow DOM provides style isolation, not a credential security boundary.
 
 ## Checks
 
@@ -156,6 +188,8 @@ Vitest covers authentication plus review sender validation, independent thread
 and comment pagination beyond 100 items, duplicates/nulls, partial GraphQL errors,
 cursor loops, cache freshness/eviction/size limits, storage failures, cancellations,
 credential races, interrupted jobs, and shared/separate rate-limit cooldowns.
+Step 4 adds route-bound content authorization, navigation lifecycle, stale PR and
+credential replies, focus revalidation, cancellation, and unresolved grouping.
 Fixtures use synthetic credentials only.
 
 The production build was exercised in an isolated Chrome for Testing profile with
@@ -166,11 +200,16 @@ opening the popup made no API request. Step 3 production browser checks also
 passed nested pagination/progress, complete counts, cached reads, stale fallback,
 cancellation, worker interruption/cache recovery, cross-tab replacement/disconnect,
 escaped titles, and unchanged GitHub DOM/styles. No uncaught page errors occurred.
-Real GitHub credential and GraphQL permission checks remain manual, not claims
-made by these mocked browser tests.
+Step 4 production checks passed repository-to-PR and direct entry, same-PR subpages,
+PR-to-PR/back/forward navigation, leaving PRs, host/body replacement, keyboard close
+and focus restoration, a 320px viewport, plain-text lazy comments, stale fallback,
+credential changes after worker restart, complete empty results, and access denials.
+GitHub document styles stayed unchanged; collapsed panels made no API requests.
+These are controlled-response browser checks, not a claim about live GitHub coverage.
 
-Step 1 was successfully loaded and run in Chrome by the project owner. For the
-step 2 live-account smoke check, enter a real token only in the extension UI:
+The project owner successfully ran Step 1 and confirmed Step 3 with a real PR URL:
+the settings preview returned its title link and review threads. For the step 2
+live-account smoke check, enter a real token only in the extension UI:
 
 1. Verify and save it, close/reopen settings and popup, and confirm the account.
 2. Stop the worker from Chrome's developer tools, reopen the popup, and confirm
@@ -192,6 +231,19 @@ For the step 3 live-account smoke check:
 6. Replace credentials or disconnect in a second settings tab; the first tab must
    clear its preview. Check an inaccessible PR and confirm it shows no cached data.
 
+For the Step 4 live-GitHub smoke check after rebuilding/reloading:
+
+1. Visit a repository homepage, then open a PR without a full reload. Confirm the
+   closed launcher appears, then open it and compare discussions with GitHub.
+2. Switch to Files changed and back, navigate to another PR, and use browser
+   back/forward. Same-PR data should survive; different PRs should start closed.
+3. Expand a thread, follow its comment permalink, and test Close/Escape and keyboard
+   focus. Check the drawer at a narrow window width and GitHub's light/dark themes.
+4. Refresh offline to check stale feedback. Cancel a load, then retry explicitly.
+5. Replace credentials or disconnect in settings while a PR panel exists. Its
+   previous data must disappear; opening settings from the panel must work.
+6. Leave the PR and confirm the launcher is removed and GitHub remains usable.
+
 Do not put real tokens in chat, source files, test fixtures, logs, or screenshots.
 
 ## Structure and next steps
@@ -199,10 +251,12 @@ Do not put real tokens in chat, source files, test fixtures, logs, or screenshot
 - `manifest.config.ts` and `vite.config.ts`: extension entrypoints and build setup.
 - `src/background/auth`: worker-only credential lifecycle and GitHub access checks.
 - `src/background/reviews`: fixed GraphQL reads, pagination jobs, cache, and errors.
-- `src/background` and `src/content`: message entrypoint and inert GitHub bootstrap.
+- `src/background/panel`: content sender/current-tab authorization and panel operations.
+- `src/content`: lightweight navigation, lazy Shadow DOM mounting, and message transport.
+- `src/panel`: drawer UI, thread grouping, and request lifecycle.
 - `src/popup`, `src/options`, `src/shared`, `src/styles`: React extension surfaces.
 - [Architecture](PR_REVIEW_COMPANION_ARCHITECTURE.md): full design and later stages.
 
-The next step adds the PR panel: Shadow DOM mounting, GitHub navigation handling,
-route cleanup, safe content-script read authorization, and unresolved-thread UI. Changes remain local until you
+The next step adds in-page thread jumping/highlighting, with GitHub permalinks as
+the fallback. Changes remain local until you
 commit and push them; Chrome Web Store publication and CI remain later work.

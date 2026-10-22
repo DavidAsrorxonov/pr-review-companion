@@ -13,16 +13,7 @@ export const prIdentitySchema = z.object({
   number: z.number().int().positive().max(2_147_483_647),
 }).strict();
 export type PrIdentity = z.infer<typeof prIdentitySchema>;
-export function parsePrUrl(value: string): PrIdentity | null {
-  try {
-    const url = new URL(value.trim());
-    if (!githubUrl.safeParse(url.href).success || /[%\\]/.test(value)) return null;
-    const match = /^\/([^/]+)\/([^/]+)\/pull\/([1-9]\d*)(?:\/(?:files|commits|checks))?\/?$/.exec(url.pathname);
-    if (!match) return null;
-    const result = prIdentitySchema.safeParse({ owner: match[1], repo: match[2], number: Number(match[3]) });
-    return result.success ? result.data : null;
-  } catch { return null; }
-}
+export { parsePrUrl } from './prUrl';
 export const metadataSchema = z.object({
   id, number: z.number().int().positive(), title: z.string(), url: githubUrl,
   state: z.enum(['OPEN', 'CLOSED', 'MERGED']), isDraft: z.boolean(),
@@ -61,7 +52,7 @@ export const progressSchema = z.object({ pages: z.number().int().nonnegative(), 
 // The last complete snapshot is deliberately separate from the current partial traversal.
 export const reviewReplySchema = z.object({
   ok: z.boolean(), state: z.enum(['loading', 'complete', 'error', 'cancelled']), complete: z.boolean(),
-  revision: z.string().uuid().optional(), jobId: z.string().uuid().optional(),
+  identity: prIdentitySchema.optional(), revision: z.string().uuid().optional(), jobId: z.string().uuid().optional(),
   snapshot: snapshotSchema.optional(), partial: reviewDataSchema.optional(), progress: progressSchema.optional(),
   freshness: z.enum(['fresh', 'stale', 'none']), persistence: z.enum(['cached', 'uncached', 'none']),
   error: reviewErrorSchema.optional(), warning: reviewErrorSchema.optional(),

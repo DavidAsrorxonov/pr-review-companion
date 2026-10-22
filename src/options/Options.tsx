@@ -143,7 +143,7 @@ export function Options() {
         </section>
       )}
       {status?.connected && status.health !== "invalid" && <ReviewPreview key={status.revision} revision={status.revision} />}
-      <p className="mt-6 text-xs leading-relaxed text-muted">Version {version} · Development preview · The PR panel is coming next.</p>
+      <p className="mt-6 text-xs leading-relaxed text-muted">Version {version} · Development preview · Thread jumping is coming next.</p>
     </main>
   );
 }

@@ -56,7 +56,7 @@ pr-review-companion/
 │   ├── content/
 │   │   ├── index.ts               # GitHub-wide bootstrap; activate only on PR routes
 │   │   ├── navigation.ts          # SPA navigation handling (GitHub swaps pages without reload)
-│   │   ├── mountPanel.ts          # creates Shadow DOM host + React root
+│   │   ├── mountPanel.tsx         # creates Shadow DOM host + React root
 │   │   ├── domAnchors.ts          # ALL GitHub selectors live here, nowhere else
 │   │   └── threadJump.ts          # scroll/highlight a thread by ID
 │   │
@@ -276,6 +276,7 @@ at rest or protection against a compromised trusted extension page.
 | Entry | Why |
 |---|---|
 | `host_permissions: https://api.github.com/*` | GraphQL/REST calls from the worker |
+| `host_permissions: https://github.com/*` | Inspect current GitHub tab URLs to authorize PR-bound content reads; discover tabs for sanitized invalidation |
 | `permissions: storage` | Trusted-context token, settings, notes, queue cache, notification state |
 | `permissions: alarms` | Scheduled polling (MV3 workers can't use long timers) |
 | `optional_permissions: notifications` | Review-request and reply alerts; request when enabled by the user |
@@ -351,11 +352,11 @@ review-data API layer are separate checkpoints.
 
 ### Step 3 review-data contract
 
-- Options-only `reviews.load { pr: { owner, repo, number }, refresh? }`,
+- Step 3 introduced options-page `reviews.load { pr: { owner, repo, number }, refresh? }`,
   `reviews.continue { jobId }`, and `reviews.cancel { jobId? }` use strict runtime
   validation. The extension ID, exact options URL, origin/frame, and sender
-  document ID are checked. Popup/content-script access remains disabled until
-  the panel step defines route-bound authorization.
+  document ID are checked. Step 4 adds the content authorization below; popup
+  review access remains disabled.
 - The worker issues fixed GraphQL queries: 25 threads with 20 initial comments,
   then 100 comments per additional comment page. Every connection has an
   independent cursor history; missing/repeated cursors fail incomplete. Node IDs
@@ -395,6 +396,57 @@ review-data API layer are separate checkpoints.
   counts, loading progress, cached/stale status, timestamp, Refresh, and Cancel.
   Outdated counts overlap resolved/unresolved counts. Pagination completeness does
   not claim atomic consistency while GitHub discussions change.
+
+### Step 4 GitHub panel contract
+
+- A small GitHub-wide bootstrap observes Navigation API current-entry changes,
+  history/pageshow events, GitHub navigation signals, and debounced DOM replacement.
+  It reads the actual URL; page event payloads cannot authorize work. React and
+  panel dependencies are lazy-loaded only on supported PR routes. No MAIN-world
+  code, history patch, or page-to-extension bridge is installed.
+- The shared dependency-free PR URL parser supports conversation/files/commits/checks
+  URLs. Same-PR subpages/fragments preserve state. Different PRs dispose the session
+  and start collapsed; non-PR routes remove the panel. A generation check rejects
+  old results even when returning to the same PR. Host replacement reattaches one
+  existing Shadow DOM host/root without duplicating the React tree.
+- The bottom-right launcher opens a 380px nonmodal overlay, constrained to the
+  viewport. Only opening/reopening or an explicit Load/Refresh action loads data.
+  Close/Escape restores launcher focus and cancels loading. Hidden pages suspend
+  loading; focus/BFCache restoration rechecks sanitized status before redisplaying
+  data. There is no automatic error retry or scheduled refresh.
+- The panel groups unresolved threads by file and displays line/original-line,
+  outdated state, first published author/excerpt, and published comment count.
+  Native disclosures mount full plain-text comments only while expanded; validated
+  permalinks open GitHub. Resolved discussions contribute to counts but not the
+  list. Empty success is shown only for a complete traversal. Partial progress and
+  last-complete snapshots remain separate and explicitly labeled.
+- Dedicated Tailwind CSS is bundled as text and placed inside the Shadow DOM,
+  with explicit typography/colors/wrapping. No document stylesheet or GitHub layout
+  mutation is used. Shadow DOM is style isolation, not a secret-storage boundary.
+- Content review callers require the extension ID, GitHub sender URL/origin,
+  top-level frame, active lifecycle, tab ID, and document ID. Current tab URL
+  inspection authorizes the requested/job PR before network work, before committing
+  a page, and before releasing results, including cached results. Tab navigation
+  and closure invalidate obsolete jobs. Cancellation can only affect the caller's
+  own job, including after leaving a PR. Replies carrying data include PR identity
+  and credential revision, checked alongside the client request generation.
+- `panel.status { pr }` returns only connected/disconnected, health, and revision.
+  `panel.openSettings { pr }` opens the fixed options page. Both are route-bound,
+  runtime-validated content operations; every `auth.*` operation remains denied
+  to content scripts. They never read local storage or receive account/token records.
+- Successful replacement/disconnect/invalid credentials trigger a data-free
+  `panel.invalidate` notification to discovered GitHub tabs. Discovery works after
+  worker restart without relying on an old subscriber registry. Panels clear data
+  immediately, recheck status, and require explicit loading for new credentials.
+- GitHub-only host access enables current-tab URL inspection and tab discovery.
+  No broad tabs, webNavigation, scripting, or new notification permissions are added.
+  The settings preview retains its existing access and behavior. Thread jumping,
+  notes, queue discovery, polling, notifications, and GitHub writes remain later steps.
+- Verification: the owner confirmed Step 3 against a real PR. Step 4 controlled
+  Chrome tests cover navigation, host/body replacement, stale results, narrow layout,
+  keyboard focus, escaped lazy comments, cross-tab auth changes after worker restart,
+  inert subframes, forbidden auth/storage access, and unchanged GitHub styles. A
+  separate live-GitHub Step 4 smoke checklist is documented in the README.
 
 ## 10. Testing Strategy
 
