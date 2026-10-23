@@ -2,7 +2,7 @@ import { parsePrUrl } from '../shared/prUrl';
 import type { PrIdentity } from '../shared/prUrl';
 
 export const routeKey = (pr: PrIdentity | null) => pr ? `${pr.owner}/${pr.repo}#${pr.number}` : null;
-export interface MountedPanel { restore(): void; destroy(): void; revalidate(clear?: boolean): Promise<void>; suspend(): void; navigated?(): void }
+export interface MountedPanel { restore(): void; destroy(): void; revalidate(clear?: boolean): Promise<void>; suspend(): void; navigated?(): void; notesChanged?(): void }
 export function createRouteCoordinator(readUrl: () => string, mount: (pr: PrIdentity, isCurrent: () => boolean) => MountedPanel) {
   let key: string | null = null;
   let mounted: MountedPanel | undefined;
@@ -23,6 +23,7 @@ export function createRouteCoordinator(readUrl: () => string, mount: (pr: PrIden
       mounted?.restore();
     },
     revalidate(clear = false) { void mounted?.revalidate(clear); },
+    notesChanged() { mounted?.notesChanged?.(); },
     suspend() { mounted?.suspend(); },
     destroy() { generation++; mounted?.destroy(); mounted = undefined; key = null; },
   };

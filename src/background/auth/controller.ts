@@ -212,5 +212,18 @@ export function createAuthController(deps: {
       return { ok: false, error: safeError(error) };
     }
   }
-  return { handle, credentials };
+  // Local features need the saved identity, never the token or a usable API grant.
+  // Share the credential commit lock so account changes cannot interleave a write.
+  const localAccount = {
+    async run<T>(revision: string, action: (accountId: number) => Promise<T> | T): Promise<T> {
+      await initialized();
+      return exclusive(() => {
+        if (!record) throw new AuthFailure('NOT_CONNECTED');
+        if (record.revision !== revision) throw new AuthFailure('SUPERSEDED');
+        return action(record.account.id);
+      });
+    },
+  };
+  return { handle, credentials, localAccount };
 }
+export type LocalAccountAccess = ReturnType<typeof createAuthController>['localAccount'];

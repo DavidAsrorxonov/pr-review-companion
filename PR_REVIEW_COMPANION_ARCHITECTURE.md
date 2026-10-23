@@ -229,8 +229,10 @@ requests as team requests rather than implying an individual assignment.
 ### Notes
 - The worker persists notes via `notesStore.ts`, namespaced by authenticated
   account ID and PR identity (`owner/repo#number` in v1).
-- Notes never leave the machine in v1. A token change does not delete notes;
+- The extension stores notes locally and does not transmit them in v1. A token change does not delete notes;
   notes for another account remain isolated from the active account's UI.
+- Step 6's implemented contract, draft lifecycle, and local-storage limits are
+  specified below. The extension never posts note text to GitHub.
 
 ## 6. Authentication
 
@@ -441,7 +443,7 @@ review-data API layer are separate checkpoints.
 - GitHub-only host access enables current-tab URL inspection and tab discovery.
   No broad tabs, webNavigation, scripting, or new notification permissions are added.
   The settings preview retains its existing access and behavior. Step 5 adds
-  thread jumping below; notes, queue discovery, polling, notifications, and GitHub
+  thread jumping below; Step 6 adds local notes. Queue discovery, polling, notifications, and GitHub
   writes remain later steps.
 - Verification: the owner confirmed Step 3 against a real PR. Step 4 controlled
   Chrome tests cover navigation, host/body replacement, stale results, narrow layout,
@@ -489,6 +491,50 @@ review-data API layer are separate checkpoints.
   regressions still pass. A real public GitHub conversation page successfully
   scrolled/focused/highlighted its actual comment using controlled review data;
   this is distinct from a real-token Step 5 API smoke test, which remains manual.
+
+### Step 6 local notes contract
+
+- **UI:** a collapsible Local notes section above review threads, initially open,
+  with an open-note count. Explicit Add/Save, Cancel editing, immediate done
+  toggles, and inline delete confirmation. Open notes precede a collapsed completed
+  group; each sorts by creation timestamp and UUID. Render escaped plain text only.
+- **Persistence:** `prrc.notes.v1` contains versioned account/PR collections; each
+  note has UUID, text, done, timestamps, and integer version. Scope by stable account
+  ID and normalized owner/repo/PR number, not credential revision. Limits: 10,000
+  characters per nonblank note, 200 notes per PR, 2 MiB total serialized record.
+  Never evict notes or overwrite malformed records. Storage failure is explicit.
+- **Account lifecycle:** auth's token-free `localAccount.run` capability awaits
+  trusted-storage initialization and serializes note operations with credential
+  changes. It permits saved accounts with unknown/invalid token health, without
+  exposing tokens or requiring GitHub access. Disconnect preserves notes but hides
+  them; reconnecting the same account restores them. Cache eviction never touches notes.
+- **Messages:** `notes.list/create/update/delete` accept PR and expected credential
+  revision; mutations use UUIDs and updates/deletes require expected note version.
+  Only active top-frame GitHub content callers may use them. Validate extension,
+  origin, document and tab; inspect current PR before work, before writes, and
+  before returning data. Popup/options callers and arbitrary account/storage keys
+  are rejected. Replies contain only the requested PR's notes or fixed error codes.
+- **Concurrency:** all storage reads/modifications/writes share the auth commit
+  lock. Stable client create IDs allow acknowledgement-loss retries without a
+  duplicate note. Version conflicts never overwrite newer changes. Cross-tab
+  update signals contain no notes/account data and trigger worker reads only in
+  open drawers. Focus/BFCache restoration rechecks status, then reads local notes.
+- **Drafts:** a document-memory map retains create/edit drafts across panel closure,
+  jumps, and same-document PR navigation. It is never stored in the page or extension
+  storage. Full document navigation, tab/extension reload, and auth invalidation
+  clear drafts. Dirty editors survive note invalidation and expose conflict choices;
+  deleted-note drafts can be copied to a new note. Lost acknowledgements reconcile
+  through a fresh list before retrying. Stale route/connection responses are dropped.
+- **Compatibility:** no auth-record migration, new dependency, permission, API call,
+  or GitHub write. No export/import/sync. URL-based keys do not follow repository
+  renames/transfers. Local data is unencrypted, profile-specific, and removed on
+  extension uninstall. The owner confirmed Step 5 worked live and pushed it to main.
+- **Verification:** all 255 Vitest tests, strict TypeScript checking, and production
+  build pass. Controlled Chrome checks cover note CRUD, draft lifecycle, worker
+  restart, storage failure, cross-tab edit/delete conflicts, offline/invalid-token
+  access, account isolation, narrow layout, and actual caller/storage boundaries.
+  Note actions create no GitHub API calls or global CSS. A real-token Step 6 smoke
+  checklist is documented in the README; it has not been executed by the agent.
 
 ## 10. Testing Strategy
 

@@ -3,6 +3,9 @@ import { createAuthApi } from './auth/github';
 import { createReviewApi } from './reviews/github';
 import { createReviewController } from './reviews/controller';
 import { createPanelController } from './panel/controller';
+import { createNotesController } from './notes/controller';
+import { parsePrUrl } from '../shared/prUrl';
+import { samePr } from './panel/access';
 
 // Initialization starts now, but handlers are registered before any awaits.
 const auth = createAuthController({
@@ -21,9 +24,19 @@ const panel = createPanelController({
   getTab: id => chrome.tabs.get(id), openSettings: () => chrome.runtime.openOptionsPage(),
 });
 
+const notes = createNotesController({
+  account: auth.localAccount, storage: chrome.storage.local, extensionId: chrome.runtime.id,
+  getTab: id => chrome.tabs.get(id),
+  async changed(pr) {
+    const tabs = await chrome.tabs.query({ url: 'https://github.com/*' });
+    await Promise.allSettled(tabs.filter(tab => tab.id !== undefined && samePr(parsePrUrl(tab.url ?? ''), pr))
+      .map(tab => chrome.tabs.sendMessage(tab.id!, { type: 'notes.invalidate' }, { frameId: 0 })));
+  },
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const type = typeof message === 'object' && message !== null && 'type' in message && typeof message.type === 'string' ? message.type : '';
-  const handler = type.startsWith('reviews.') ? reviews : type.startsWith('panel.') ? panel : auth;
+  const handler = type.startsWith('notes.') ? notes : type.startsWith('reviews.') ? reviews : type.startsWith('panel.') ? panel : auth;
   void handler.handle(message, sender).then(sendResponse);
   return true;
 });

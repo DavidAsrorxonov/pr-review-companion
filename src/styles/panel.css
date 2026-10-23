@@ -225,3 +225,17 @@ summary {
 .footnote {
   margin-top: 18px;
 }
+.local-notes { margin-top: 16px; border: 1px solid #dce5de; border-radius: 9px; background: white; }
+.local-notes > summary h2 { display: inline; font-size: 14px; }
+.notes-content { padding: 0 12px 12px; }
+.note-form { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.note-form label { font-size: 12px; font-weight: 600; }
+.note-form textarea { display: block; width: 100%; min-width: 0; resize: vertical; font: 13px/1.6 var(--font-sans); padding: 8px; border: 1px solid #526762; border-radius: 6px; background: white; color: #172b29; }
+.note-form > button { align-self: flex-start; }
+.notes-list { list-style: none; padding: 0; margin: 0; }
+.local-note { padding: 12px 0; border-top: 1px solid #dce5de; margin-top: 12px; }
+.note-checkbox { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.note-checkbox input { appearance: auto; width: 16px; height: 16px; accent-color: #17634c; }
+.note-confirm { margin-top: 8px; font-size: 12px; }
+.note-confirm p { margin-bottom: 8px; }
+.completed-notes > summary { padding: 10px 0; font-size: 12px; }

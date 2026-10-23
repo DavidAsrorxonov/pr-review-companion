@@ -2,10 +2,11 @@
 
 A Chrome extension for keeping track of GitHub pull-request reviews.
 
-**Status: step 5 — Jump to review discussions.** Open the Review Companion drawer
-on a GitHub pull request to inspect unresolved discussions grouped by file and
-jump to a published comment on the page. The settings PR URL preview remains
-available. Notes, queues, polling, notifications, and GitHub write operations remain later steps.
+**Status: step 6 — Local PR notes.** Open the Review Companion drawer on a GitHub
+pull request to inspect review discussions, jump to published comments, and keep
+account-scoped local notes with done/not-done status. The settings PR URL preview
+remains available. Queues, polling, notifications, and GitHub write operations
+remain later steps.
 
 ## Requirements and installation
 
@@ -100,6 +101,43 @@ the jump button is disabled. Hidden, inaccessible, or unloaded discussions are n
 treated as deleted. New jumps, navigation, refresh, closing, page suspension, and
 credential changes cancel pending lookup work; highlights disappear on removal or
 invalidation. No new permissions, worker messages, or persisted settings are added.
+
+### Local PR notes
+
+The **Local notes** section above the thread list starts expanded. Its heading
+shows the number of open notes after they load. Write a general PR note and use
+**Add note**; use **Edit**, **Save**, or **Cancel editing** for existing text.
+The **Done** checkbox saves immediately after you toggle it. Completed notes live
+in a separate collapsed group. **Delete** requires an inline confirmation.
+Open/completed groups each sort by creation time, oldest first.
+
+Notes are plain text, with at most 10,000 characters each, 200 notes per PR, and
+2 MiB total across all saved accounts. Nothing is evicted automatically. Storage
+errors leave saved notes intact and keep the editor draft. Reload/reconciliation
+checks an uncertain save before retrying; a stable create ID prevents duplicates.
+If another tab edits the same note, your draft is kept. Choose **Use latest** or
+**Keep my draft**, then explicitly save. If another tab deletes it, you can copy
+your draft into a new note (finish any existing new-note draft first).
+
+Saved notes belong to the GitHub account ID and PR URL identity. Token replacement
+for the same account preserves them; disconnect hides them, and reconnecting that
+account restores access. Different accounts are isolated, including after worker
+restarts. Notes remain usable offline or with an expired/invalid token as long as
+the account record is still saved. Review-fetch errors do not block local notes.
+Opening the drawer still follows the existing review-loading behavior; notes
+operations themselves never call GitHub or publish anything there.
+
+Drafts are not saved notes: they live only in this tab's content-script memory.
+They survive drawer closure, jumping, and navigation between PRs within the same
+GitHub document. Full page loads/reloads, tab closure, extension reloads, and
+connection invalidation discard unfinished text. Cross-tab note updates preserve
+drafts; account changes clear them. **Reload notes** refreshes only local data.
+
+Persistence uses trusted-context `chrome.storage.local`, through validated worker
+messages, with no new permissions. It is local to this browser profile, is not
+encrypted or synced by this extension, and is removed when the extension is
+uninstalled. Renaming/transferring a repository does not migrate URL-keyed notes.
+Backup/export/import and GitHub note sharing are not part of Step 6.
 
 The manifest now includes `https://github.com/*` host access so the worker can
 verify the current tab's PR URL before serving content-script reads. This is in
@@ -213,8 +251,10 @@ credential races, interrupted jobs, and shared/separate rate-limit cooldowns.
 Step 4 adds route-bound content authorization, navigation lifecycle, stale PR and
 credential replies, focus revalidation, cancellation, and unresolved grouping.
 Step 5 adds permalink validation, bounded lookup, obsolete callback rejection,
-highlight cleanup, and same-PR jump cancellation. All 198 Vitest tests, strict
-TypeScript checking, and the production build pass.
+highlight cleanup, and same-PR jump cancellation. Step 6 adds account-isolated
+notes, local-account lifecycle checks, version conflicts, storage limits/failures,
+draft retention, stale replies, and uncertain-save reconciliation. All 255 Vitest
+tests, strict TypeScript checking, and the production build pass.
 Fixtures use synthetic credentials only.
 
 The production build was exercised in an isolated Chrome for Testing profile with
@@ -242,10 +282,21 @@ conversation page was loaded and its actual `discussion_r45394374` comment was
 focused/highlighted successfully, using controlled review data. No real-token
 Step 5 smoke test has been performed by the implementation agent.
 
+Step 6 controlled Chrome checks passed explicit note CRUD/done state, escaped
+text, failed-save retention/retry, worker-restart persistence, per-PR drafts,
+cross-tab conflicts and deleted-note recovery, offline/invalid-token use,
+same-account replacement, disconnect/reconnect, account isolation, actual sender
+and storage restrictions, keyboard closure, and narrow layouts. Notes actions
+made no GitHub API requests or global style changes; no uncaught page errors were
+observed. Step 4 panel/authentication and Step 5 jump browser regressions also
+passed with notes enabled. This is controlled verification, not a real-token
+Step 6 smoke test.
+
 The project owner successfully ran Step 1 and confirmed Step 3 with a real PR URL:
 the settings preview returned its title link and review threads. The owner also
-confirmed that Step 4 worked live and pushed it to `main`. For the step 2
-live-account smoke check, enter a real token only in the extension UI:
+confirmed that Steps 4 and 5 worked live and pushed them to `main`.
+
+For the step 2 live-account smoke check, enter a real token only in the extension UI:
 
 1. Verify and save it, close/reopen settings and popup, and confirm the account.
 2. Stop the worker from Chrome's developer tools, reopen the popup, and confirm
@@ -311,16 +362,43 @@ extension API responses. Screenshots go to ignored `test-results/step5/`. Set
 DOM using controlled review data. That optional check is not live authentication
 or API verification; real-account smoke checks remain separate.
 
-## Structure and next steps
+## Step 6 smoke and browser checks
+
+For the Step 6 live-account smoke check after rebuilding and reloading:
+
+1. On a real PR, open Local notes, add/edit a note, toggle Done, and confirm a
+   deletion. Close/reopen the drawer and reload the page to check persistence.
+2. Leave a draft, navigate to another PR and back without a full reload, and check
+   that it survives. A full reload discards the draft but retains saved notes.
+3. Open the PR in another tab and edit the same note. Verify the first tab keeps
+   its dirty draft and requires an explicit conflict choice before saving.
+4. Test local notes offline, then disconnect/reconnect the same account. Saved
+   notes should return; another account must not see them. Keep real tokens in settings.
+5. Check thread jumping, review refresh, and the popup/settings experience.
+
+Run the repeatable Step 6 browser check with the same Playwright/Chrome setup:
+
+```sh
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+CHROME_EXECUTABLE=/absolute/path/to/chrome \
+node tests/browser/step6.mjs
+```
+
+Build `dist/` first. This uses a fresh temporary profile, synthetic credentials,
+controlled GitHub responses, and an injected test-only storage failure. Screenshots
+are written to ignored `test-results/step6/`. No actual account credential is used.
+
+## Project structure
 
 - `manifest.config.ts` and `vite.config.ts`: extension entrypoints and build setup.
 - `src/background/auth`: worker-only credential lifecycle and GitHub access checks.
 - `src/background/reviews`: fixed GraphQL reads, pagination jobs, cache, and errors.
 - `src/background/panel`: content sender/current-tab authorization and panel operations.
+- `src/background/notes`: worker-owned local note storage and message validation.
 - `src/content`: lightweight navigation, lazy Shadow DOM mounting, and message transport.
 - `src/panel`: drawer UI, thread grouping, and request lifecycle.
 - `src/popup`, `src/options`, `src/shared`, `src/styles`: React extension surfaces.
 - [Architecture](PR_REVIEW_COMPANION_ARCHITECTURE.md): full design and later stages.
 
-The next step adds local notes. Changes remain local until you
+The next step adds the review queue and toolbar badge. Changes remain local until you
 commit and push them; Chrome Web Store publication and CI remain later work.

@@ -6,6 +6,9 @@ import type { PrIdentity } from '../shared/reviews';
 import css from '../styles/panel.css?inline';
 import { HOST_ID, mountingParent, removeOrphanHost, findDiscussion, observeDiscussions, highlightDiscussion } from './domAnchors';
 import { createThreadJump } from './threadJump';
+import { createNotesSession } from '../panel/notesSession';
+import { requestNotes } from '../shared/notes';
+import { noteDrafts } from './noteDrafts';
 
 export function mountPanel(pr: PrIdentity, isCurrent: () => boolean) {
   const host = document.createElement('div');
@@ -17,6 +20,8 @@ export function mountPanel(pr: PrIdentity, isCurrent: () => boolean) {
   const container = document.createElement('div'); container.className = 'prrc-root'; shadow.append(container);
   const root = createRoot(container);
   const session = createPanelSession(pr, panelTransport, isCurrent);
+  const notes = createNotesSession(pr, requestNotes, noteDrafts, isCurrent);
+  const stopNotes = session.subscribe(() => notes.sync(session.getSnapshot()));
   let jumpUrl = location.href;
   let revealing = false;
   const jump = createThreadJump({
@@ -37,15 +42,15 @@ export function mountPanel(pr: PrIdentity, isCurrent: () => boolean) {
     if (!state.open || state.reply?.revision !== revision) return Promise.resolve({ state: 'cancelled' as const });
     return jump.jump(links, revision);
   } };
-  root.render(<Panel session={session} jump={jumpApi} pr={pr} />);
+  root.render(<Panel session={session} jump={jumpApi} pr={pr} notes={notes} />);
   function restore() {
     const parent = mountingParent();
     if (parent && !host.isConnected) { removeOrphanHost(host); parent.append(host); }
   }
   restore();
-  return { restore, navigated: jump.cancel,
+  return { restore, navigated: jump.cancel, notesChanged: notes.invalidate,
     revalidate(clear = false) { jump.cancel(); return session.revalidate(clear); },
     suspend() { jump.cancel(); session.suspend(); },
-    destroy() { jump.dispose(); session.dispose(); root.unmount(); host.remove(); },
+    destroy() { stopNotes(); notes.dispose(); jump.dispose(); session.dispose(); root.unmount(); host.remove(); },
   };
 }

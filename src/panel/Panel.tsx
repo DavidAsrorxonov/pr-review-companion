@@ -6,6 +6,8 @@ import { errorMessages } from "../shared/auth";
 import { ThreadList } from "./components/ThreadList";
 import type { ThreadJump } from "../content/threadJump";
 import type { PrIdentity } from "../shared/prUrl";
+import { NotesList } from "./components/NotesList";
+import type { NotesSession } from "./notesSession";
 
 function Failure({ error }: { error: ReviewError }) {
   const messages = {
@@ -62,10 +64,12 @@ export function Panel({
   session,
   jump,
   pr,
+  notes,
 }: {
   session: PanelSession;
   jump: ThreadJump;
   pr: PrIdentity;
+  notes: NotesSession;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const jumping = useSyncExternalStore(jump.subscribe, jump.getSnapshot);
@@ -231,6 +235,7 @@ export function Panel({
                 <Summary data={reply.partial} />
               </section>
             )}
+            <NotesList session={notes} checking={state.checking} />
             {data && (
               <>
                 <h2 className="list-heading">
